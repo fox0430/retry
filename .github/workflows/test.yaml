@@ -34,6 +34,7 @@ jobs:
   tests:
     strategy:
       matrix:
+        os: [ 'ubuntu-latest' ]
         nim: [ 'stable', 'devel' ]
 
     name: test ${{ matrix.os }}
@@ -41,10 +42,6 @@ jobs:
     needs: before
     strategy:
       matrix:
-        os:
-          - ubuntu-latest
-          # - macOS-latest
-          # - windows-latest
     env:
       NIM_VERSION: stable
     steps:
