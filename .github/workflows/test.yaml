@@ -32,39 +32,17 @@ jobs:
       - run: echo "Before job"
 
   tests:
-    strategy:
-      matrix:
-        os: [ 'ubuntu-latest' ]
-        nim: [ 'stable', 'devel' ]
+    runs-on: ubuntu-latest
 
-    name: test ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    needs: before
     strategy:
       matrix:
-    env:
-      NIM_VERSION: stable
+        nim: [ '1.6.2', 'stable', 'devel' ]
+
+    name: Test on ${{ matrix.nim }}
     steps:
-    - uses: actions/checkout@v3
-
-    - name: Cache choosenim
-      id: cache-choosenim
-      uses: actions/cache@v3
-      with:
-        path: ~/.choosenim
-        key: ${{ runner.os }}-choosenim-${{ env.NIM_VERSION }}
-    - name: Cache nimble
-      id: cache-nimble
-      uses: actions/cache@v3
-      with:
-        path: ~/.nimble
-        key: ${{ runner.os }}-nimble-${{ env.NIM_VERSION }}
-    - uses: jiro4989/setup-nim-action@v1
-      with:
-        nim-version: ${{ env.NIM_VERSION }}
-
-    - name: Run unit test
-      run: nimble test --verbose -y
-
-    - name: Install retry
-      run: nimble install --verbose -y
+      - uses: actions/checkout@v3
+      - name: Setup nim
+        uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: ${{ matrix.nim }}
+      - run: nimble test -y
