@@ -10,4 +10,4 @@ installFiles  = @["retry.nim"]
 
 # Dependencies
 
-requires "nim >= 1.6.12"
+requires "nim >= 1.4.0"
