@@ -32,6 +32,10 @@ jobs:
       - run: echo "Before job"
 
   tests:
+    strategy:
+      matrix:
+        nim: [ 'stable', 'devel' ]
+
     name: test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     needs: before
