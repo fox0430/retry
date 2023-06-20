@@ -1,0 +1,69 @@
+name: Tests
+
+on:
+  push:
+    paths:
+      - '.github/workflows/test.yaml'
+      - 'tests/**'
+      - 'retry.nim'
+      - 'retry.nimble'
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '.github/workflows/test.yaml'
+      - 'tests/**'
+      - 'retry.nim'
+      - 'retry.nimble'
+
+permissions:
+  contents: read
+
+jobs:
+  skip:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Skip job"
+
+  before:
+    runs-on: ubuntu-latest
+    if: "! contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - run: echo "Before job"
+
+  build:
+    name: build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: before
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          # - macOS-latest
+          # - windows-latest
+    env:
+      NIM_VERSION: stable
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Cache choosenim
+      id: cache-choosenim
+      uses: actions/cache@v3
+      with:
+        path: ~/.choosenim
+        key: ${{ runner.os }}-choosenim-${{ env.NIM_VERSION }}
+    - name: Cache nimble
+      id: cache-nimble
+      uses: actions/cache@v3
+      with:
+        path: ~/.nimble
+        key: ${{ runner.os }}-nimble-${{ env.NIM_VERSION }}
+    - uses: jiro4989/setup-nim-action@v1
+      with:
+        nim-version: ${{ env.NIM_VERSION }}
+
+    - name: Run unit test
+      run: nimble test --verbose -y
+
+    - name: Install retry
+      run: nimble install --verbose -y
