@@ -8,7 +8,7 @@ on:
       - 'retry.nim'
       - 'retry.nimble'
     branches:
-      - master
+      - main
   pull_request:
     paths:
       - '.github/workflows/test.yaml'
