@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  push:
+    paths:
+      - '.github/workflows/test.yaml'
+      - 'tests/**'
+      - 'retry.nim'
+      - 'retry.nimble'
+    branches:
+      - master
+  pull_request:
+    paths:
+      - '.github/workflows/test.yaml'
+      - 'tests/**'
+      - 'retry.nim'
+      - 'retry.nimble'
+
+permissions:
+  contents: read
+
+jobs:
+  skip:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Skip job"
+
+  before:
+    runs-on: ubuntu-latest
+    if: "! contains(github.event.head_commit.message, '[skip ci]')"
+    steps:
+      - run: echo "Before job"
+
+  tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        nim: [ 'stable', 'devel' ]
+
+    name: Test on ${{ matrix.nim }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup nim
+        uses: jiro4989/setup-nim-action@v1
+        with:
+          nim-version: ${{ matrix.nim }}
+      - run: nimble test -y
