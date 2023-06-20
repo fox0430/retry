@@ -31,8 +31,8 @@ jobs:
     steps:
       - run: echo "Before job"
 
-  build:
-    name: build ${{ matrix.os }}
+  tests:
+    name: test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     needs: before
     strategy:
