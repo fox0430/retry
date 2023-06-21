@@ -4,7 +4,8 @@
 # This software is released under the MIT License, see LICENSE.txt.
 #
 
-import std/[asyncdispatch, macros, math, os, times, random]
+import std/[asyncdispatch, macros, math, os, times, random, logging, strutils,
+            strformat]
 
 type
   BackOff* = enum
@@ -31,6 +32,14 @@ type
     ## Maximum attempts
     maxRetries*: int
 
+    ## Log level
+    logLevel*: Level
+
+    ## Show logs if fails. You need to create a logger before retry.
+    failLog*: bool
+
+    customFailLog*: string
+
 const
   DefaultRetryPolicy* = RetryPolicy(
     delay: initDuration(milliseconds = 100),
@@ -38,7 +47,9 @@ const
     backoff: BackOff.fixed,
     exponent: 2,
     maxRetries: 3,
-    jitter: false)
+    jitter: false,
+    failLog: true,
+    logLevel: Level.lvlInfo)
 
 proc sleep(t: int64) {.inline.} = sleep t.int
 
@@ -74,6 +85,31 @@ proc delay(policy: RetryPolicy, i: int): Duration =
   if policy.maxDelay < result:
     result = policy.maxDelay
 
+proc formatCustomFailLog(
+  baseMessage: string,
+  currentRetry, maxRetries: int,
+  delay: Duration): string {.inline.} =
+
+    ## Interpolates a format string with the values from
+    ## currentRetry, maxRetries, and delay.
+
+    baseMessage.format($currentRetry, maxRetries, $delay)
+
+proc showFailLog(
+  policy: RetryPolicy,
+  currentRetry, maxRetries: int,
+  delay: Duration) =
+
+    ## Show logs if policy.failLog is true.
+
+    let message =
+      if policy.customFailLog.len > 0:
+        policy.customFailLog.formatCustomFailLog(currentRetry, maxRetries, delay)
+      else:
+        fmt"Attempt: {currentRetry}/{maxRetries}, retrying in {delay} seconds"
+
+    log(policy.logLevel, message)
+
 template retry*(policy: RetryPolicy, body: untyped): untyped =
   ## Attempts received body according to RetryPolicy.
   ## Returns the result of the last body if it fails after trying up to the
@@ -87,7 +123,12 @@ template retry*(policy: RetryPolicy, body: untyped): untyped =
       try:
         body
       except CatchableError, Defect:
-        sleep delay(policy, i)
+        let delay = delay(policy, i)
+
+        if policy.failLog:
+          showFailLog(policy, i, policy.maxRetries, delay)
+
+        sleep delay
 
         continue
 
@@ -109,7 +150,12 @@ template retryAsync*(policy: RetryPolicy, body: untyped): untyped =
       try:
         body
       except CatchableError, Defect:
-        await sleepAsync delay(policy, i)
+        let delay = delay(policy, i)
+
+        if policy.failLog:
+          showFailLog(policy, i, policy.maxRetries, delay)
+
+        await sleepAsync delay
 
         continue
 

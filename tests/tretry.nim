@@ -4,8 +4,59 @@
 # This software is released under the MIT License, see LICENSE.txt.
 #
 
-import std/[unittest, asyncdispatch, times]
-import retry
+import std/[unittest, asyncdispatch, times, strformat, logging]
+import retry {.all.}
+
+suite "formatCustomFailLog":
+  test "All values":
+    let
+      baseMessage = "currentRetry: $1, maxRetries: $2, duration: $3"
+      currentRetry = 0
+      maxRetries = 1
+      delay = initDuration(milliseconds = 100)
+
+    assert fmt"currentRetry: {$currentRetry}, maxRetries: {$maxRetries}, duration: {$delay}" ==
+      baseMessage.formatCustomFailLog(currentRetry, maxRetries, delay)
+
+  test "Empty":
+    let
+      baseMessage = ""
+      currentRetry = 0
+      maxRetries = 1
+      delay = initDuration(milliseconds = 100)
+
+    assert baseMessage ==
+      baseMessage.formatCustomFailLog(currentRetry, maxRetries, delay)
+
+  test "Only currentRetry":
+    let
+      baseMessage = "currentRetry: $1"
+      currentRetry = 0
+      maxRetries = 1
+      delay = initDuration(milliseconds = 100)
+
+    assert fmt"currentRetry: {$currentRetry}" ==
+      baseMessage.formatCustomFailLog(currentRetry, maxRetries, delay)
+
+  test "Only maxRetries":
+    let
+      baseMessage = "maxRetries: $2"
+      currentRetry = 0
+      maxRetries = 1
+      delay = initDuration(milliseconds = 100)
+
+    assert fmt"maxRetries: {$maxRetries}" ==
+      baseMessage.formatCustomFailLog(currentRetry, maxRetries, delay)
+
+  test "Only delay":
+    let
+      baseMessage = "delay: $3"
+      currentRetry = 0
+      maxRetries = 1
+      delay = initDuration(milliseconds = 100)
+
+    assert fmt"delay: {$delay}" ==
+      baseMessage.formatCustomFailLog(currentRetry, maxRetries, delay)
 
 suite "retry":
   test "The default policy and sccuesful":
@@ -173,3 +224,63 @@ suite "retryAsync":
       waitFor asyncFail()
     except AssertionDefect:
       assert now() - n > initDuration(milliseconds = 1000)
+
+suite "Logs: `retry`":
+  ## Init a console logger for tests.
+  var logger = newConsoleLogger(levelThreshold=lvlInfo, "This is test: ")
+  addHandler(logger)
+
+  test "Enable failLog":
+    var p = DefaultRetryPolicy
+    p.maxRetries = 1
+    p.failLog = true
+
+    try:
+      retry p:
+        assert false
+    except AssertionDefect:
+      assert true
+
+  test "customFailLog":
+    var p = DefaultRetryPolicy
+    p.maxRetries = 1
+    p.failLog = true
+    p.customFailLog = "Custom log: $1, $2, $3"
+
+    try:
+      retry p:
+        assert false
+    except AssertionDefect:
+      assert true
+
+suite "Logs: `retryAsync`":
+  test "Enable failLog":
+    proc asyncFail(): Future[void] {.async.} =
+      var p = DefaultRetryPolicy
+      p.maxRetries = 1
+      p.failLog = true
+
+      retryAsync p:
+        await sleepAsync(1)
+        assert false
+
+    try:
+       waitFor asyncFail()
+    except AssertionDefect:
+      assert true
+
+  test "customFailLog":
+    proc asyncFail(): Future[void] {.async.} =
+      var p = DefaultRetryPolicy
+      p.maxRetries = 1
+      p.failLog = true
+      p.customFailLog = "Custom log: $1, $2, $3"
+
+      retryAsync p:
+        await sleepAsync(1)
+        assert false
+
+    try:
+       waitFor asyncFail()
+    except AssertionDefect:
+      assert true
