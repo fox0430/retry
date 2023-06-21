@@ -32,12 +32,15 @@ import std/[times, httpclient]
 import pkg/retry
 
 let myPolicy = RetryPolicy(
-    delay: initDuration(milliseconds = 100),
-    maxDelay: initDuration(milliseconds = 1000),
-    backoff: BackOff.exponent,
-    exponent: 2,
-    maxRetries: 3,
-    jitter: true)
+  delay: initDuration(milliseconds = 100),
+  maxDelay: initDuration(milliseconds = 1000),
+  backoff: BackOff.exponent,
+  exponent: 2,
+  maxRetries: 3,
+  jitter: true,
+  failLog: true,
+  logLevel: Level.lvlError,
+  customFailLog: "Custom log")
 
 retry myPolicy:
   discard client.getContent("https://nim-lang.org")
