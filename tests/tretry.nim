@@ -162,7 +162,7 @@ suite "retryIf":
     p.maxRetries = 5
 
     try:
-      discard retryIf(p, sum(1, 2), false):
+      discard retryIf(p, sum(1, 2), false)
     except ValueError:
       assert c == 6
 
