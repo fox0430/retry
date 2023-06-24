@@ -131,6 +131,78 @@ suite "retry":
     except AssertionDefect:
       assert now() - n > initDuration(milliseconds = 1000)
 
+suite "retryIf":
+  test "The default policy and sccuesful":
+    proc sum(a, b: int): int = a + b
+
+    assert 3 == retryIf(sum(1, 2), r != 3)
+
+  test "The default policy and all fails":
+    var c = 0
+
+    proc sum(a, b: int): int =
+      c.inc
+      return a + b
+
+    try:
+      discard retryIf(sum(1, 2), r == 3)
+    except RetryError:
+      discard
+
+    assert c == 4
+
+  test "Change maxRetries":
+    var c = 0
+
+    proc sum(a, b: int): int =
+      c.inc
+      return a + b
+
+    var p = DefaultRetryPolicy
+    p.maxRetries = 5
+
+    try:
+      discard retryIf(p, sum(1, 2), false)
+    except RetryError:
+      assert c == 6
+
+  test "Change delay":
+    proc sum(a, b: int): int = a + b
+
+    var p = DefaultRetryPolicy
+    p.delay = initDuration(milliseconds = 1)
+
+    let n = now()
+    try:
+      discard retryIf(p, sum(1, 2), false)
+    except RetryError:
+      assert now() - n < initDuration(milliseconds = 100)
+
+  test "Change backoff":
+    proc sum(a, b: int): int = a + b
+
+    var p = DefaultRetryPolicy
+    p.backOff = BackOff.exponential
+
+    let n = now()
+    try:
+      discard retryIf(p, sum(1, 2), false)
+    except RetryError:
+      assert now() - n > initDuration(milliseconds = 700)
+
+  test "Change exponent":
+    proc sum(a, b: int): int = a + b
+
+    var p = DefaultRetryPolicy
+    p.backOff = BackOff.exponential
+    p.exponent = 3
+
+    let n = now()
+    try:
+      discard retryIf(p, sum(1, 2), false)
+    except RetryError:
+      assert now() - n > initDuration(milliseconds = 1000)
+
 suite "retryAsync":
   test "The default policy and sccuesful":
     proc sleepAsync(): Future[void] {.async.} =
@@ -223,6 +295,82 @@ suite "retryAsync":
     try:
       waitFor asyncFail()
     except AssertionDefect:
+      assert now() - n > initDuration(milliseconds = 1000)
+
+suite "retryIfAsync":
+  test "The default policy and sccuesful":
+    proc returnInt(): Future[int] {.async.} =
+      return 1
+
+    assert 1 == waitFor retryIfAsync(returnInt(), r != 1)
+
+  test "The default policy and all fails":
+    var c = 0
+
+    proc countAndReturnInt(): Future[int] {.async.} =
+      c.inc
+      return 1
+
+    try:
+      discard waitFor retryIfAsync(countAndReturnInt(), r == 1)
+    except RetryError:
+      discard
+
+    assert c == 4
+
+  test "Change maxRetries":
+    var c = 0
+
+    proc countAndReturnFlase(): Future[bool] {.async.} =
+      c.inc
+      return false
+
+    var p = DefaultRetryPolicy
+    p.maxRetries = 5
+
+    try:
+      discard waitFor retryIfAsync(p, countAndReturnFlase(), false)
+    except RetryError:
+      assert c == 6
+
+  test "Change delay":
+    proc returnFlase(): Future[bool] {.async.} =
+      return false
+
+    var p = DefaultRetryPolicy
+    p.delay = initDuration(milliseconds = 1)
+
+    let n = now()
+    try:
+      discard waitFor retryIfAsync(p, returnFlase(), false)
+    except RetryError:
+      assert now() - n < initDuration(milliseconds = 100)
+
+  test "Change backoff":
+    proc returnFlase(): Future[bool] {.async.} =
+      return false
+
+    var p = DefaultRetryPolicy
+    p.backOff = BackOff.exponential
+
+    let n = now()
+    try:
+      discard waitFor retryIfAsync(p, returnFlase(), false)
+    except RetryError:
+      assert now() - n > initDuration(milliseconds = 700)
+
+  test "Change exponent":
+    proc returnFlase(): Future[bool] {.async.} =
+      return false
+
+    var p = DefaultRetryPolicy
+    p.backOff = BackOff.exponential
+    p.exponent = 3
+
+    let n = now()
+    try:
+      discard waitFor retryIfAsync(p, returnFlase(), false)
+    except RetryError:
       assert now() - n > initDuration(milliseconds = 1000)
 
 suite "Logs: `retry`":
