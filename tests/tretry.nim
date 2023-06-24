@@ -135,7 +135,7 @@ suite "retryIf":
   test "The default policy and sccuesful":
     proc sum(a, b: int): int = a + b
 
-    assert 3 == retryIf(sum(1, 2), r == 3)
+    assert 3 == retryIf(sum(1, 2), r != 3)
 
   test "The default policy and all fails":
     var c = 0
@@ -145,8 +145,8 @@ suite "retryIf":
       return a + b
 
     try:
-      discard retryIf(sum(1, 2), r == 0)
-    except ValueError:
+      discard retryIf(sum(1, 2), r == 3)
+    except RetryError:
       discard
 
     assert c == 4
@@ -163,7 +163,7 @@ suite "retryIf":
 
     try:
       discard retryIf(p, sum(1, 2), false)
-    except ValueError:
+    except RetryError:
       assert c == 6
 
   test "Change delay":
@@ -175,7 +175,7 @@ suite "retryIf":
     let n = now()
     try:
       discard retryIf(p, sum(1, 2), false)
-    except ValueError:
+    except RetryError:
       assert now() - n < initDuration(milliseconds = 100)
 
   test "Change backoff":
@@ -187,7 +187,7 @@ suite "retryIf":
     let n = now()
     try:
       discard retryIf(p, sum(1, 2), false)
-    except ValueError:
+    except RetryError:
       assert now() - n > initDuration(milliseconds = 700)
 
   test "Change exponent":
@@ -200,7 +200,7 @@ suite "retryIf":
     let n = now()
     try:
       discard retryIf(p, sum(1, 2), false)
-    except ValueError:
+    except RetryError:
       assert now() - n > initDuration(milliseconds = 1000)
 
 suite "retryAsync":
@@ -302,7 +302,7 @@ suite "retryIfAsync":
     proc returnInt(): Future[int] {.async.} =
       return 1
 
-    assert 1 == waitFor retryIfAsync(returnInt(), r == 1)
+    assert 1 == waitFor retryIfAsync(returnInt(), r != 1)
 
   test "The default policy and all fails":
     var c = 0
@@ -312,8 +312,8 @@ suite "retryIfAsync":
       return 1
 
     try:
-      discard waitFor retryIfAsync(countAndReturnInt(), false)
-    except ValueError:
+      discard waitFor retryIfAsync(countAndReturnInt(), r == 1)
+    except RetryError:
       discard
 
     assert c == 4
@@ -330,7 +330,7 @@ suite "retryIfAsync":
 
     try:
       discard waitFor retryIfAsync(p, countAndReturnFlase(), false)
-    except ValueError:
+    except RetryError:
       assert c == 6
 
   test "Change delay":
@@ -343,7 +343,7 @@ suite "retryIfAsync":
     let n = now()
     try:
       discard waitFor retryIfAsync(p, returnFlase(), false)
-    except ValueError:
+    except RetryError:
       assert now() - n < initDuration(milliseconds = 100)
 
   test "Change backoff":
@@ -356,7 +356,7 @@ suite "retryIfAsync":
     let n = now()
     try:
       discard waitFor retryIfAsync(p, returnFlase(), false)
-    except ValueError:
+    except RetryError:
       assert now() - n > initDuration(milliseconds = 700)
 
   test "Change exponent":
@@ -370,7 +370,7 @@ suite "retryIfAsync":
     let n = now()
     try:
       discard waitFor retryIfAsync(p, returnFlase(), false)
-    except ValueError:
+    except RetryError:
       assert now() - n > initDuration(milliseconds = 1000)
 
 suite "Logs: `retry`":

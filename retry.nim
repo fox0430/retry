@@ -40,6 +40,8 @@ type
 
     customFailLog*: string
 
+  RetryError* = object of CatchableError
+
 const
   DefaultRetryPolicy* = RetryPolicy(
     delay: initDuration(milliseconds = 100),
@@ -139,62 +141,67 @@ template retry*(body: untyped): untyped =
 
   retry DefaultRetryPolicy: body
 
-macro retryIf*(policy: RetryPolicy, body: typed, conditions: untyped): untyped =
-  ## Succeeds only if the result of `body` matches the `conditions`.
-  ##
-  ## A `r` variable can be used implicitly in `retryIf`.
-  ## It's  assigned the result of `body` and is available in the `conditions`.
+macro retryIf*(
+  policy: RetryPolicy,
+  body: typed,
+  conditions: untyped): untyped =
+    ## Retry only if the result of `body` matches the `conditions`.
+    ##
+    ## A `r` variable can be used implicitly in `retryIf`.
+    ## It's  assigned the result of `body` and is available in the `conditions`.
 
-  # Get a return type of `body`.
-  var procType = getType(body)
-  while procType.kind == nnkBracketExpr: procType = procType[1]
-  let returnType = procType
+    # Get a return type of `body`.
+    var procType = getType(body)
+    while procType.kind == nnkBracketExpr: procType = procType[1]
+    let returnType = procType
 
-  quote do:
-    (proc (): `returnType` =
-      for i in 0 .. `policy`.maxRetries:
-        let r {.inject.} = `body`
-        if `conditions`:
-          # Return if conditions match.
-          return r
-        else:
-          let delay = delay(`policy`, i)
+    quote do:
+      (proc (): `returnType` =
+        for i in 0 .. `policy`.maxRetries:
+          let r {.inject.} = `body`
+          if `conditions`:
+            # Retry if conditions match.
+            let delay = delay(`policy`, i)
 
-          if `policy`.failLog:
-            showFailLog(`policy`, i, `policy`.maxRetries, delay)
+            if `policy`.failLog:
+              showFailLog(`policy`, i, `policy`.maxRetries, delay)
 
-          sleep delay
+            sleep delay
+          else:
+            return r
 
-      raise newException(ValueError, "")
-    )()
+        raise newException(RetryError, "Maximum attempts reached")
+      )()
 
-macro retryIf*(body: typed, conditions: untyped): untyped =
-  ## Use DefaultRetryPolicy.
+macro retryIf*(
+  body: typed,
+  conditions: untyped): untyped =
+    ## Use DefaultRetryPolicy.
 
-  const Policy = DefaultRetryPolicy
+    const Policy = DefaultRetryPolicy
 
-  # Get a return type of `body`.
-  var procType = getType(body)
-  while procType.kind == nnkBracketExpr: procType = procType[1]
-  let returnType = procType
+    # Get a return type of `body`.
+    var procType = getType(body)
+    while procType.kind == nnkBracketExpr: procType = procType[1]
+    let returnType = procType
 
-  result = quote do:
-    (proc (): `returnType` =
-      for i in 0 .. Policy.maxRetries:
-        let r {.inject.} = `body`
-        if `conditions`:
-          # Return if conditions match.
-          return r
-        else:
-          let delay = delay(Policy, i)
+    result = quote do:
+      (proc (): `returnType` =
+        for i in 0 .. Policy.maxRetries:
+          let r {.inject.} = `body`
+          if `conditions`:
+            # Retry if conditions match.
+            let delay = delay(Policy, i)
 
-          if Policy.failLog:
-            showFailLog(Policy, i, Policy.maxRetries, delay)
+            if Policy.failLog:
+              showFailLog(Policy, i, Policy.maxRetries, delay)
 
-          sleep delay
+            sleep delay
+          else:
+            return r
 
-      raise newException(ValueError, "")
-    )()
+        raise newException(RetryError, "Maximum attempts reached")
+      )()
 
 template retryAsync*(policy: RetryPolicy, body: untyped): untyped =
   ## Use sleepAsync.
@@ -227,7 +234,6 @@ macro retryIfAsync*(
   policy: RetryPolicy,
   body: typed,
   conditions: untyped): untyped =
-
     ## Use sleepAsync and return an async proc.
 
     # Get a return type in the Future of `body`.
@@ -238,43 +244,43 @@ macro retryIfAsync*(
         for i in 0 .. `policy`.maxRetries:
           let r {.inject.} = await `body`
           if `conditions`:
-            # Return if conditions match.
-            return r
-          else:
+            # Retry if conditions match.
             let delay = delay(`policy`, i)
 
             if `policy`.failLog:
               showFailLog(`policy`, i, `policy`.maxRetries, delay)
 
             await sleepAsync delay
+          else:
+            return r
 
-        # TODO: Fix this error.
-        raise newException(ValueError, "")
+        raise newException(RetryError, "Maximum attempts reached")
       )()
 
-macro retryIfAsync*(body: typed, conditions: untyped): untyped =
-  ## Use DefaultRetryPolicy.
+macro retryIfAsync*(
+  body: typed,
+  conditions: untyped): untyped =
+    ## Use DefaultRetryPolicy.
 
-  const Policy = DefaultRetryPolicy
+    const Policy = DefaultRetryPolicy
 
-  # Get a return type in the Future of `body`.
-  let returnType = getTypeInst(body)[1]
+    # Get a return type in the Future of `body`.
+    let returnType = getTypeInst(body)[1]
 
-  quote do:
-    (proc (): Future[`returnType`] {.async.} =
-      for i in 0 .. Policy.maxRetries:
-        let r {.inject.} = await `body`
-        if `conditions`:
-          # Return if conditions match.
-          return r
-        else:
-          let delay = delay(Policy, i)
+    quote do:
+      (proc (): Future[`returnType`] {.async.} =
+        for i in 0 .. Policy.maxRetries:
+          let r {.inject.} = await `body`
+          if `conditions`:
+            # Retry if conditions match.
+            let delay = delay(Policy, i)
 
-          if Policy.failLog:
-            showFailLog(Policy, i, Policy.maxRetries, delay)
+            if Policy.failLog:
+              showFailLog(Policy, i, Policy.maxRetries, delay)
 
-          await sleepAsync delay
+            await sleepAsync delay
+          else:
+            return r
 
-      # TODO: Fix this error.
-      raise newException(ValueError, "")
-    )()
+        raise newException(RetryError, "Maximum attempts reached")
+      )()
