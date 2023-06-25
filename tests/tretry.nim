@@ -66,7 +66,9 @@ suite "retry":
       retry:
         c.inc
     except AssertionDefect:
-      assert c == 1
+      discard
+
+    assert c == 1
 
   test "The default policy and all fails":
     var c = 0
@@ -76,7 +78,9 @@ suite "retry":
         c.inc
         assert false
     except AssertionDefect:
-      assert c == 4
+      discard
+
+    assert c == 4
 
   test "Change maxRetries":
     var c = 0
@@ -89,7 +93,9 @@ suite "retry":
         c.inc
         assert false
     except AssertionDefect:
-      assert c == 6
+      discard
+
+    assert c == 6
 
   test "Change delay":
     var p = DefaultRetryPolicy
@@ -100,7 +106,9 @@ suite "retry":
       retry p:
         assert false
     except AssertionDefect:
-      assert now() - n < initDuration(milliseconds = 100)
+      discard
+
+    assert now() - n < initDuration(milliseconds = 100)
 
   test "Change backoff":
     var c = 0
@@ -114,7 +122,9 @@ suite "retry":
         c.inc
         assert false
     except AssertionDefect:
-      assert now() - n > initDuration(milliseconds = 700)
+      discard
+
+    assert now() - n > initDuration(milliseconds = 700)
 
   test "Change exponent":
     var c = 0
@@ -129,7 +139,9 @@ suite "retry":
         c.inc
         assert false
     except AssertionDefect:
-      assert now() - n > initDuration(milliseconds = 1000)
+      discard
+
+    assert now() - n > initDuration(milliseconds = 1000)
 
 suite "retryIf":
   test "The default policy and sccuesful":
@@ -162,9 +174,11 @@ suite "retryIf":
     p.maxRetries = 5
 
     try:
-      discard retryIf(p, sum(1, 2), false)
+      discard retryIf(p, sum(1, 2), true)
     except RetryError:
-      assert c == 6
+      discard
+
+    assert c == 6
 
   test "Change delay":
     proc sum(a, b: int): int = a + b
@@ -174,9 +188,11 @@ suite "retryIf":
 
     let n = now()
     try:
-      discard retryIf(p, sum(1, 2), false)
+      discard retryIf(p, sum(1, 2), true)
     except RetryError:
-      assert now() - n < initDuration(milliseconds = 100)
+      discard
+
+    assert now() - n < initDuration(milliseconds = 100)
 
   test "Change backoff":
     proc sum(a, b: int): int = a + b
@@ -186,9 +202,11 @@ suite "retryIf":
 
     let n = now()
     try:
-      discard retryIf(p, sum(1, 2), false)
+      discard retryIf(p, sum(1, 2), true)
     except RetryError:
-      assert now() - n > initDuration(milliseconds = 700)
+      discard
+
+    assert now() - n > initDuration(milliseconds = 700)
 
   test "Change exponent":
     proc sum(a, b: int): int = a + b
@@ -199,9 +217,11 @@ suite "retryIf":
 
     let n = now()
     try:
-      discard retryIf(p, sum(1, 2), false)
+      discard retryIf(p, sum(1, 2), true)
     except RetryError:
-      assert now() - n > initDuration(milliseconds = 1000)
+      discard
+
+    assert now() - n > initDuration(milliseconds = 1000)
 
 suite "retryIfException":
   test "The default policy and sccuesful":
@@ -211,6 +231,7 @@ suite "retryIfException":
       c.inc
 
     retryIfException(count(), ValueError)
+
     assert c == 1
 
   test "The default policy and all fails":
@@ -319,7 +340,9 @@ suite "retryAsync":
     try:
       waitFor asyncFail()
     except AssertionDefect:
-      assert c == 4
+      discard
+
+    assert c == 4
 
   test "Change maxRetries":
     var c = 0
@@ -336,7 +359,9 @@ suite "retryAsync":
     try:
       waitFor asyncFail()
     except AssertionDefect:
-      assert c == 6
+      discard
+
+    assert c == 6
 
   test "Change delay":
     var c = 0
@@ -354,7 +379,9 @@ suite "retryAsync":
     try:
       waitFor asyncFail()
     except AssertionDefect:
-      assert now() - n < initDuration(milliseconds = 100)
+      discard
+
+    assert now() - n < initDuration(milliseconds = 100)
 
   test "Change backoff":
     var c = 0
@@ -372,7 +399,9 @@ suite "retryAsync":
     try:
       waitFor asyncFail()
     except AssertionDefect:
-      assert now() - n > initDuration(milliseconds = 700)
+      discard
+
+    assert now() - n > initDuration(milliseconds = 700)
 
   test "Change exponent":
     var c = 0
@@ -391,7 +420,9 @@ suite "retryAsync":
     try:
       waitFor asyncFail()
     except AssertionDefect:
-      assert now() - n > initDuration(milliseconds = 1000)
+      discard
+
+    assert now() - n > initDuration(milliseconds = 1000)
 
 suite "retryIfAsync":
   test "The default policy and sccuesful":
@@ -425,9 +456,11 @@ suite "retryIfAsync":
     p.maxRetries = 5
 
     try:
-      discard waitFor retryIfAsync(p, countAndReturnFlase(), false)
+      discard waitFor retryIfAsync(p, countAndReturnFlase(), true)
     except RetryError:
-      assert c == 6
+      discard
+
+    assert c == 6
 
   test "Change delay":
     proc returnFlase(): Future[bool] {.async.} =
@@ -438,9 +471,11 @@ suite "retryIfAsync":
 
     let n = now()
     try:
-      discard waitFor retryIfAsync(p, returnFlase(), false)
+      discard waitFor retryIfAsync(p, returnFlase(), true)
     except RetryError:
-      assert now() - n < initDuration(milliseconds = 100)
+      discard
+
+    assert now() - n < initDuration(milliseconds = 100)
 
   test "Change backoff":
     proc returnFlase(): Future[bool] {.async.} =
@@ -451,9 +486,11 @@ suite "retryIfAsync":
 
     let n = now()
     try:
-      discard waitFor retryIfAsync(p, returnFlase(), false)
+      discard waitFor retryIfAsync(p, returnFlase(), true)
     except RetryError:
-      assert now() - n > initDuration(milliseconds = 700)
+      discard
+
+    assert now() - n > initDuration(milliseconds = 700)
 
   test "Change exponent":
     proc returnFlase(): Future[bool] {.async.} =
@@ -465,9 +502,11 @@ suite "retryIfAsync":
 
     let n = now()
     try:
-      discard waitFor retryIfAsync(p, returnFlase(), false)
+      discard waitFor retryIfAsync(p, returnFlase(), true)
     except RetryError:
-      assert now() - n > initDuration(milliseconds = 1000)
+      discard
+
+    assert now() - n > initDuration(milliseconds = 1000)
 
 suite "retryIfExceptionAsync":
   test "The default policy and sccuesful":
