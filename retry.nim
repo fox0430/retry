@@ -13,32 +13,33 @@ type
     exponential
 
   RetryPolicy* = object
-    ## Time to wait after the attempt.
     delay*: Duration
+      ## Time to wait after the attempt.
 
-    ## Maximum delay
     maxDelay*: Duration
+      ## Maximum delay.
 
-    ## Randomly delay. if true.
     jitter*: bool
+      ## Randomly delay. if true.
 
-    ## Fix or increase the wait time after an attempt.
     backOff*: BackOff
+      ## Fix or increase the wait time after an attempt.
 
-    ## Increase delay exponentially with each attempt.
-    ## Ignored if `backoff.fixed`.
     exponent*: int
+      ## Increase delay exponentially with each attempt.
+      ## Ignored if `backoff.fixed`.
 
-    ## Maximum attempts
     maxRetries*: int
+      ## Maximum attempts,
 
-    ## Log level
     logLevel*: Level
+      ## Log level.
 
-    ## Show logs if fails. You need to create a logger before retry.
     failLog*: bool
+      ## Show logs if fails. You need to create a logger before retry.
 
     customFailLog*: string
+      ## If you used custom logs use this.
 
   RetryError* = object of CatchableError
 
@@ -112,8 +113,13 @@ proc showFailLog(
 
 template retry*(policy: RetryPolicy, body: untyped): untyped =
   ## Attempts received body according to RetryPolicy.
-  ## Returns the result of the last body if it fails after trying up to the
-  ## maximum number of times.
+  ## Returns the result of the last body if it fails
+  ## (`CatchableError` or `Defect`) after trying up to the maximum number of times.
+
+  runnableExamples:
+    let p = DefaultRetryPolicy
+    retry p:
+      assert true
 
   for i in 0 .. policy.maxRetries:
     if i == policy.maxRetries:
@@ -137,6 +143,10 @@ template retry*(policy: RetryPolicy, body: untyped): untyped =
 template retry*(body: untyped): untyped =
   ## Use `DefaultRetryPolicy`.
 
+  runnableExamples:
+    retry:
+      assert true
+
   retry DefaultRetryPolicy: body
 
 macro retryIf*(
@@ -147,6 +157,9 @@ macro retryIf*(
     ##
     ## A `r` variable can be used implicitly in `retryIf`.
     ## It's  assigned the result of `body` and is available in the `conditions`.
+
+    runnableExamples:
+      assert 2 == retryIf(1 + 1, r != 2)
 
     # Get a return type of `body`.
     var procType = getType(body)
@@ -172,7 +185,11 @@ macro retryIf*(
       )()
 
 template retryIf*(body: typed, conditions: untyped): untyped =
-  ## Use DefaultRetryPolicy.
+  ## Use `DefaultRetryPolicy`.
+
+  runnableExamples:
+    let p = DefaultRetryPolicy
+    assert 2 == retryIf(p, 1 + 1, r != 2)
 
   retryIf(DefaultRetryPolicy, body, conditions)
 
@@ -181,6 +198,10 @@ macro retryIfException*(
   body: typed,
   exceptions: varargs[untyped]): untyped =
     ## Retry only if the result of `body` matches `exceptions`.
+
+    runnableExamples:
+      let p = DefaultRetryPolicy
+      retryIfException(p, assert true, AssertionDefect)
 
     # NimNode for Exceptions.
     var e = newSeq[NimNode]()
@@ -212,10 +233,24 @@ template retryIfException*(
   exceptions: varargs[untyped]): untyped =
     ## Use `DefaultRetryPolicy`.
 
+    runnableExamples:
+      retryIfException(assert true, AssertionDefect)
+
     retryIfException(DefaultRetryPolicy, body, exceptions)
 
 template retryAsync*(policy: RetryPolicy, body: untyped): untyped =
   ## Use sleepAsync.
+
+  runnableExamples:
+    import std/asyncdispatch
+
+    let p = DefaultRetryPolicy
+
+    proc sleepAsyncRetry(t: int): Future[void] {.async.} =
+      retryAsync p:
+        await sleepAsync t
+
+    waitFor sleepAsyncRetry(1000)
 
   for i in 0 .. policy.maxRetries:
     if i == policy.maxRetries:
@@ -239,6 +274,15 @@ template retryAsync*(policy: RetryPolicy, body: untyped): untyped =
 template retryAsync*(body: untyped): untyped =
   ## Use `DefaultRetryPolicy`.
 
+  runnableExamples:
+    import std/asyncdispatch
+
+    proc sleepAsyncRetry(t: int): Future[void] {.async.} =
+      retryAsync:
+        await sleepAsync t
+
+    waitFor sleepAsyncRetry(1000)
+
   retryAsync DefaultRetryPolicy: body
 
 macro retryIfAsync*(
@@ -246,6 +290,17 @@ macro retryIfAsync*(
   body: typed,
   conditions: untyped): untyped =
     ## Return an async proc.
+
+    runnableExamples:
+      import std/asyncdispatch
+
+      let p = DefaultRetryPolicy
+
+      proc sleepAndReturnInt(t: int): Future[int] {.async.} =
+        await sleepAsync t
+        return t
+
+      assert 1 == waitFor retryIfAsync(p, sleepAndReturnInt(1), r != 1)
 
     # Get a return type in the Future of `body`.
     let returnType = getTypeInst(body)[1]
@@ -269,7 +324,16 @@ macro retryIfAsync*(
       )()
 
 template retryIfAsync*(body: typed, conditions: untyped): untyped =
-  ## Use DefaultRetryPolicy.
+  ## Use `DefaultRetryPolicy`.
+
+  runnableExamples:
+    import std/asyncdispatch
+
+    proc sleepAndReturnInt(t: int): Future[int] {.async.} =
+      await sleepAsync t
+      return t
+
+    assert 1 == waitFor retryIfAsync(sleepAndReturnInt(1), r != 1)
 
   retryIfAsync(DefaultRetryPolicy, body, conditions)
 
@@ -278,6 +342,13 @@ macro retryIfExceptionAsync*(
   body: typed,
   exceptions: varargs[untyped]): untyped =
     ## Return an async proc.
+
+    runnableExamples:
+      import std/asyncdispatch
+
+      let p = DefaultRetryPolicy
+
+      waitFor retryIfExceptionAsync(p, sleepAsync(1), ValueError)
 
     # Get a return type in the Future of `body`.
     let returnType = getTypeInst(body)[1]
@@ -313,5 +384,10 @@ template retryIfExceptionAsync*(
   body: untyped,
   exceptions: varargs[untyped]): untyped =
     ## Use `DefaultRetryPolicy`.
+
+    runnableExamples:
+      import std/asyncdispatch
+
+      waitFor retryIfExceptionAsync(sleepAsync(1), ValueError)
 
     retryIfExceptionAsync(DefaultRetryPolicy, body, exceptions)
