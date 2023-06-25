@@ -203,6 +203,44 @@ macro retryIf*(
         raise newException(RetryError, "Maximum attempts reached")
       )()
 
+macro retryIfException*(
+  policy: RetryPolicy,
+  body: typed,
+  exceptions: varargs[untyped]): untyped =
+    ## Retry only if the result of `body` matches `exceptions`.
+
+    # NimNode for Exceptions.
+    var e = newSeq[NimNode]()
+    for ident in exceptions:
+      e.add ident
+
+    quote do:
+      for i in 0 .. `policy`.maxRetries:
+        if i == `policy`.maxRetries:
+          # Don't catch errors at the end.
+          `body`
+        else:
+          try:
+            `body`
+          except `e`:
+            let delay = delay(`policy`, i)
+
+            if `policy`.failLog:
+              showFailLog(`policy`, i, `policy`.maxRetries, delay)
+
+            sleep delay
+
+            continue
+
+          break
+
+template retryIfException*(
+  body: untyped,
+  exceptions: varargs[untyped]): untyped =
+    ## Use `DefaultRetryPolicy`.
+
+    retryIfException(DefaultRetryPolicy, body, exceptions)
+
 template retryAsync*(policy: RetryPolicy, body: untyped): untyped =
   ## Use sleepAsync.
 
@@ -284,3 +322,46 @@ macro retryIfAsync*(
 
         raise newException(RetryError, "Maximum attempts reached")
       )()
+
+macro retryIfExceptionAsync*(
+  policy: RetryPolicy,
+  body: typed,
+  exceptions: varargs[untyped]): untyped =
+    ## Return an async proc.
+
+    # Get a return type in the Future of `body`.
+    let returnType = getTypeInst(body)[1]
+
+    # NimNode for Exceptions.
+    var e = newSeq[NimNode]()
+    for ident in exceptions:
+      e.add ident
+
+    quote do:
+      (proc (): Future[`returnType`] {.async.} =
+        for i in 0 .. `policy`.maxRetries:
+          if i == `policy`.maxRetries:
+            # Don't catch errors at the end.
+            await `body`
+          else:
+            try:
+              await `body`
+            except `e`:
+              let delay = delay(`policy`, i)
+
+              if `policy`.failLog:
+                showFailLog(`policy`, i, `policy`.maxRetries, delay)
+
+              await sleepAsync delay
+
+              continue
+
+            break
+      )()
+
+template retryIfExceptionAsync*(
+  body: untyped,
+  exceptions: varargs[untyped]): untyped =
+    ## Use `DefaultRetryPolicy`.
+
+    retryIfExceptionAsync(DefaultRetryPolicy, body, exceptions)

@@ -203,6 +203,102 @@ suite "retryIf":
     except RetryError:
       assert now() - n > initDuration(milliseconds = 1000)
 
+suite "retryIfException":
+  test "The default policy and sccuesful":
+    var c = 0
+
+    proc count() =
+      c.inc
+
+    retryIfException(count(), ValueError)
+    assert c == 1
+
+  test "The default policy and all fails":
+    var c = 0
+
+    proc countAndAssertionDefect() =
+      c.inc
+      raise newException(AssertionDefect, "")
+
+    try:
+      retryIfException(countAndAssertionDefect(), AssertionDefect)
+    except AssertionDefect:
+      discard
+
+    assert c == 4
+
+  test "Change maxRetries":
+    var c = 0
+
+    proc countAndAssertionDefect() =
+      c.inc
+      raise newException(AssertionDefect, "")
+
+    var p = DefaultRetryPolicy
+    p.maxRetries = 5
+
+    try:
+      retryIfException(p, countAndAssertionDefect(), AssertionDefect)
+    except AssertionDefect:
+      discard
+
+    assert c == 6
+
+  test "Change delay":
+    var c = 0
+
+    proc countAndAssertionDefect() =
+      c.inc
+      raise newException(AssertionDefect, "")
+
+    var p = DefaultRetryPolicy
+    p.delay = initDuration(milliseconds = 1)
+
+    let n = now()
+    try:
+      retryIfException(p, countAndAssertionDefect(), AssertionDefect)
+    except AssertionDefect:
+      discard
+
+    assert now() - n < initDuration(milliseconds = 100)
+
+  test "Change backoff":
+    var c = 0
+
+    proc countAndAssertionDefect() =
+      c.inc
+      raise newException(AssertionDefect, "")
+
+    var p = DefaultRetryPolicy
+    p.backOff = BackOff.exponential
+
+    let n = now()
+    try:
+      retryIfException(p, countAndAssertionDefect(), AssertionDefect)
+    except AssertionDefect:
+      discard
+
+    assert now() - n > initDuration(milliseconds = 700)
+
+  test "Change exponent":
+    var c = 0
+
+    proc countAndAssertionDefect() =
+      c.inc
+      raise newException(AssertionDefect, "")
+
+    var p = DefaultRetryPolicy
+    p.backOff = BackOff.exponential
+    p.exponent = 3
+
+    let n = now()
+    try:
+      retryIfException(p, countAndAssertionDefect(), AssertionDefect)
+    except AssertionDefect:
+      discard
+
+    assert now() - n > initDuration(milliseconds = 1000)
+
 suite "retryAsync":
   test "The default policy and sccuesful":
     proc sleepAsync(): Future[void] {.async.} =
@@ -372,6 +468,115 @@ suite "retryIfAsync":
       discard waitFor retryIfAsync(p, returnFlase(), false)
     except RetryError:
       assert now() - n > initDuration(milliseconds = 1000)
+
+suite "retryIfExceptionAsync":
+  test "The default policy and sccuesful":
+    var c = 0
+
+    proc count(): Future[void] {.async.} =
+      c.inc
+
+    waitFor retryIfExceptionAsync(count(), ValueError)
+
+    assert c == 1
+
+  test "The default policy and all fails":
+    var c = 0
+
+    proc countAndAssertionDefect(): Future[void] {.async.} =
+      c.inc
+      raise newException(AssertionDefect, "")
+
+    try:
+      waitFor retryIfExceptionAsync(countAndAssertionDefect(), AssertionDefect)
+    except AssertionDefect:
+      discard
+
+    assert c == 4
+
+  test "Change maxRetries":
+    var c = 0
+
+    proc countAndAssertionDefect(): Future[void] {.async.} =
+      c.inc
+      raise newException(AssertionDefect, "")
+
+    var p = DefaultRetryPolicy
+    p.maxRetries = 5
+
+    try:
+      waitFor retryIfExceptionAsync(
+        p,
+        countAndAssertionDefect(),
+        AssertionDefect)
+    except AssertionDefect:
+      discard
+
+    assert c == 6
+
+  test "Change delay":
+    var c = 0
+
+    proc countAndAssertionDefect(): Future[void] {.async.} =
+      c.inc
+      raise newException(AssertionDefect, "")
+
+    var p = DefaultRetryPolicy
+    p.delay = initDuration(milliseconds = 1)
+
+    let n = now()
+    try:
+      waitFor retryIfExceptionAsync(
+        p,
+        countAndAssertionDefect(),
+        AssertionDefect)
+    except AssertionDefect:
+      discard
+
+    assert now() - n < initDuration(milliseconds = 100)
+
+  test "Change backoff":
+    var c = 0
+
+    proc countAndAssertionDefect(): Future[void] {.async.} =
+      c.inc
+      raise newException(AssertionDefect, "")
+
+    var p = DefaultRetryPolicy
+    p.backoff = BackOff.exponential
+
+    let n = now()
+    try:
+      waitFor retryIfExceptionAsync(
+        p,
+        countAndAssertionDefect(),
+        AssertionDefect)
+    except AssertionDefect:
+      discard
+
+    assert now() - n > initDuration(milliseconds = 700)
+
+  test "Change exponent":
+    var c = 0
+
+    proc countAndAssertionDefect(): Future[void] {.async.} =
+      c.inc
+      raise newException(AssertionDefect, "")
+
+    var p = DefaultRetryPolicy
+    p.backoff = BackOff.exponential
+    p.exponent = 3
+
+    let n = now()
+    try:
+      waitFor retryIfExceptionAsync(
+        p,
+        countAndAssertionDefect(),
+        AssertionDefect)
+    except AssertionDefect:
+      discard
+
+    assert now() - n > initDuration(milliseconds = 1000)
 
 suite "Logs: `retry`":
   ## Init a console logger for tests.
