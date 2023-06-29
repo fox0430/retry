@@ -1,6 +1,0 @@
-nimcache/
-nimblecache/
-htmldocs/
-tests/*
-!tests/*.*
-retry
