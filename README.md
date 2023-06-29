@@ -48,6 +48,10 @@ retry myPolicy:
   discard client.getContent("https://nim-lang.org")
 ```
 
+## Documents
+
+https://fox0430.github.io/retry/retry.html
+
 ## License
 
 MIT license
