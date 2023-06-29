@@ -323,7 +323,7 @@ macro retryIfAsync*(
         raise newException(RetryError, "Maximum attempts reached")
       )()
 
-template retryIfAsync*(body: typed, conditions: untyped): untyped =
+template retryIfAsync*(asyncProc: typed, conditions: untyped): untyped =
   ## Use `DefaultRetryPolicy`.
 
   runnableExamples:
@@ -335,11 +335,11 @@ template retryIfAsync*(body: typed, conditions: untyped): untyped =
 
     assert 1 == waitFor retryIfAsync(sleepAndReturnInt(1), r != 1)
 
-  retryIfAsync(DefaultRetryPolicy, body, conditions)
+  retryIfAsync(DefaultRetryPolicy, asyncProc, conditions)
 
 macro retryIfExceptionAsync*(
   policy: RetryPolicy,
-  body: typed,
+  asyncProc: typed,
   exceptions: varargs[untyped]): untyped =
     ## Return an async proc.
 
@@ -350,8 +350,8 @@ macro retryIfExceptionAsync*(
 
       waitFor retryIfExceptionAsync(p, sleepAsync(1), ValueError)
 
-    # Get a return type in the Future of `body`.
-    let returnType = getTypeInst(body)[1]
+    # Get a return type in the Future of `asyncProc`.
+    let returnType = getTypeInst(asyncProc)[1]
 
     # NimNode for Exceptions.
     var e = newSeq[NimNode]()
@@ -363,10 +363,10 @@ macro retryIfExceptionAsync*(
         for i in 0 .. `policy`.maxRetries:
           if i == `policy`.maxRetries:
             # Don't catch errors at the end.
-            await `body`
+            await `asyncProc`
           else:
             try:
-              await `body`
+              await `asyncProc`
             except `e`:
               let delay = delay(`policy`, i)
 
@@ -381,7 +381,7 @@ macro retryIfExceptionAsync*(
       )()
 
 template retryIfExceptionAsync*(
-  body: untyped,
+  asyncProc: untyped,
   exceptions: varargs[untyped]): untyped =
     ## Use `DefaultRetryPolicy`.
 
@@ -390,4 +390,4 @@ template retryIfExceptionAsync*(
 
       waitFor retryIfExceptionAsync(sleepAsync(1), ValueError)
 
-    retryIfExceptionAsync(DefaultRetryPolicy, body, exceptions)
+    retryIfExceptionAsync(DefaultRetryPolicy, asyncProc, exceptions)
