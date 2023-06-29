@@ -6,7 +6,7 @@ on:
       - '.github/workflows/docs.yaml'
       - 'retry.nim'
     branches:
-    - main
+      - main
 
 jobs:
   docs:
