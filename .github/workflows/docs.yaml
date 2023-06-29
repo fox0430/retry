@@ -1,0 +1,31 @@
+name: Docs
+
+on:
+  push:
+    paths:
+      - '.github/workflows/docs.yaml'
+      - 'retry.nim'
+    branches:
+    - main
+
+jobs:
+  docs:
+    env:
+      NIM_VERSION: stable
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Cache choosenim
+      id: cache-choosenim
+      uses: actions/cache@v3
+      with:
+        path: ~/.choosenim
+        key: ${{ runner.os }}-choosenim-${{ env.NIM_VERSION }}
+    - uses: jiro4989/setup-nim-action@v1
+    - run: nimble docs
+    - name: Deploy
+      uses: peaceiris/actions-gh-pages@v3
+      env:
+        ACTIONS_DEPLOY_KEY: ${{ secrets.GITHUB_TOKEN }}
+        PUBLISH_BRANCH: gh-pages
+        PUBLISH_DIR: ./docs
