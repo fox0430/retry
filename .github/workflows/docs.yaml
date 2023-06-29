@@ -28,7 +28,7 @@ jobs:
     - run: nimble doc retry
     - name: Deploy
       uses: peaceiris/actions-gh-pages@v3
-      env:
+      with:
         ACTIONS_DEPLOY_KEY: ${{ secrets.GITHUB_TOKEN }}
         PUBLISH_BRANCH: gh-pages
         PUBLISH_DIR: ./docs
