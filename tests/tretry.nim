@@ -347,7 +347,7 @@ when AsyncSupport:
     test "The default policy and sccuesful":
       proc sleepAsync(): Future[void] {.async.} =
         retryAsync:
-          await sleepAsync(chronos.milliseconds(1))
+          await sleepAsync(1)
 
       waitFor sleepAsync()
 
