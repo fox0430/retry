@@ -47,13 +47,19 @@ jobs:
         uses: jiro4989/setup-nim-action@v1
         with:
           nim-version: ${{ matrix.nim }}
-      - run: |
-        echo Tests with -d:asyncBackend=none
-        nimble test -y
 
-        echo Tests with -d:asyncBackend=asyncdispatch
-        nimble testAsyncdispatch
+      - name: Install chronos
+        run: |
+          nimble refresh
+          nimble install chronos
 
-        nimble install chronos
-        echo Tests with -d:asyncBackend=chronos
-        nimble testChronos
+      - name: Run tests
+        run: |
+          echo Tests with -d:asyncBackend=none
+          nimble test
+
+          echo Tests with -d:asyncBackend=asyncdispatch
+          nimble testAsyncdispatch
+
+          echo Tests with -d:asyncBackend=chronos
+          nimble testChronos
