@@ -15,6 +15,8 @@ retry:
 ```
 
 ```nim
+# Please call the `asyncBackend` flag: -d:asyncBackend=asyncdispatch
+
 import std/[asyncdispatch, httpclient]
 import pkg/retry
 
