@@ -3,4 +3,3 @@ nimblecache/
 htmldocs/
 tests/*
 !tests/*.*
-retry

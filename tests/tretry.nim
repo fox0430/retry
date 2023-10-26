@@ -4,8 +4,10 @@
 # This software is released under the MIT License, see LICENSE.txt.
 #
 
-import std/[unittest, asyncdispatch, times, strformat, logging]
-import retry {.all.}
+import std/[unittest, times, strformat, logging]
+import ../retry/asyncbackend
+
+import ../retry/retry {.all.}
 
 suite "formatCustomFailLog":
   test "All values":
@@ -13,7 +15,7 @@ suite "formatCustomFailLog":
       baseMessage = "currentRetry: $1, maxRetries: $2, duration: $3"
       currentRetry = 0
       maxRetries = 1
-      delay = initDuration(milliseconds = 100)
+      delay = 100
 
     assert fmt"currentRetry: {$currentRetry}, maxRetries: {$maxRetries}, duration: {$delay}" ==
       baseMessage.formatCustomFailLog(currentRetry, maxRetries, delay)
@@ -23,7 +25,7 @@ suite "formatCustomFailLog":
       baseMessage = ""
       currentRetry = 0
       maxRetries = 1
-      delay = initDuration(milliseconds = 100)
+      delay = 100
 
     assert baseMessage ==
       baseMessage.formatCustomFailLog(currentRetry, maxRetries, delay)
@@ -33,7 +35,7 @@ suite "formatCustomFailLog":
       baseMessage = "currentRetry: $1"
       currentRetry = 0
       maxRetries = 1
-      delay = initDuration(milliseconds = 100)
+      delay = 100
 
     assert fmt"currentRetry: {$currentRetry}" ==
       baseMessage.formatCustomFailLog(currentRetry, maxRetries, delay)
@@ -43,7 +45,7 @@ suite "formatCustomFailLog":
       baseMessage = "maxRetries: $2"
       currentRetry = 0
       maxRetries = 1
-      delay = initDuration(milliseconds = 100)
+      delay = 100
 
     assert fmt"maxRetries: {$maxRetries}" ==
       baseMessage.formatCustomFailLog(currentRetry, maxRetries, delay)
@@ -53,7 +55,7 @@ suite "formatCustomFailLog":
       baseMessage = "delay: $3"
       currentRetry = 0
       maxRetries = 1
-      delay = initDuration(milliseconds = 100)
+      delay = 100
 
     assert fmt"delay: {$delay}" ==
       baseMessage.formatCustomFailLog(currentRetry, maxRetries, delay)
@@ -99,7 +101,7 @@ suite "retry":
 
   test "Change delay":
     var p = DefaultRetryPolicy
-    p.delay = initDuration(milliseconds = 1)
+    p.delay = 1
 
     let n = now()
     try:
@@ -184,7 +186,7 @@ suite "retryIf":
     proc sum(a, b: int): int = a + b
 
     var p = DefaultRetryPolicy
-    p.delay = initDuration(milliseconds = 1)
+    p.delay = 1
 
     let n = now()
     try:
@@ -272,12 +274,19 @@ suite "retryIfException":
       c.inc
       raise newException(AssertionDefect, "")
 
-    var p = DefaultRetryPolicy
-    p.delay = initDuration(milliseconds = 1)
+    const Policy = RetryPolicy(
+      delay: 1,
+      maxDelay: 1000,
+      backoff: BackOff.fixed,
+      exponent: 2,
+      maxRetries: 3,
+      jitter: false,
+      failLog: true,
+      logLevel: Level.lvlInfo)
 
     let n = now()
     try:
-      retryIfException(p, countAndAssertionDefect(), AssertionDefect)
+      retryIfException(Policy, countAndAssertionDefect(), AssertionDefect)
     except AssertionDefect:
       discard
 
@@ -290,12 +299,19 @@ suite "retryIfException":
       c.inc
       raise newException(AssertionDefect, "")
 
-    var p = DefaultRetryPolicy
-    p.backOff = BackOff.exponential
+    const Policy = RetryPolicy(
+      delay: 100,
+      maxDelay: 1000,
+      backoff: BackOff.exponential,
+      exponent: 2,
+      maxRetries: 3,
+      jitter: false,
+      failLog: true,
+      logLevel: Level.lvlInfo)
 
     let n = now()
     try:
-      retryIfException(p, countAndAssertionDefect(), AssertionDefect)
+      retryIfException(Policy, countAndAssertionDefect(), AssertionDefect)
     except AssertionDefect:
       discard
 
@@ -308,314 +324,375 @@ suite "retryIfException":
       c.inc
       raise newException(AssertionDefect, "")
 
-    var p = DefaultRetryPolicy
-    p.backOff = BackOff.exponential
-    p.exponent = 3
+    const Policy= RetryPolicy(
+      delay: 100,
+      maxDelay: 1000,
+      backoff: BackOff.exponential,
+      exponent: 3,
+      maxRetries: 3,
+      jitter: false,
+      failLog: true,
+      logLevel: Level.lvlInfo)
 
     let n = now()
     try:
-      retryIfException(p, countAndAssertionDefect(), AssertionDefect)
+      retryIfException(Policy, countAndAssertionDefect(), AssertionDefect)
     except AssertionDefect:
       discard
 
     assert now() - n > initDuration(milliseconds = 1000)
 
-suite "retryAsync":
-  test "The default policy and sccuesful":
-    proc sleepAsync(): Future[void] {.async.} =
-      retryAsync:
-        await sleepAsync(1)
+when AsyncSupport:
+  suite "retryAsync":
+    test "The default policy and sccuesful":
+      proc sleepAsync(): Future[void] {.async.} =
+        retryAsync:
+          await sleepAsync(1)
 
-    waitFor sleepAsync()
+      waitFor sleepAsync()
 
-  test "The default policy and all fails":
-    var c = 0
+    test "The default policy and all fails":
+      var c = 0
 
-    proc asyncFail(): Future[void] {.async.} =
-      retryAsync:
+      proc asyncFail(): Future[void] {.async.} =
+        retryAsync:
+          c.inc
+          await sleepAsync(1)
+          assert false
+
+      try:
+        waitFor asyncFail()
+      except AssertionDefect:
+        discard
+
+      assert c == 4
+
+    test "Change maxRetries":
+      var c = 0
+
+      proc asyncFail(): Future[void] {.async.} =
+        var p = DefaultRetryPolicy
+        p.maxRetries = 5
+
+        retryAsync p:
+          c.inc
+          await sleepAsync(1)
+          assert false
+
+      try:
+        waitFor asyncFail()
+      except AssertionDefect:
+        discard
+
+      assert c == 6
+
+    test "Change delay":
+      var c = 0
+
+      proc asyncFail(): Future[void] {.async.} =
+        var p = DefaultRetryPolicy
+        p.delay = 1
+
+        retryAsync p:
+          c.inc
+          await sleepAsync(1)
+          assert false
+
+      let n = now()
+      try:
+        waitFor asyncFail()
+      except AssertionDefect:
+        discard
+
+      assert now() - n < initDuration(milliseconds = 100)
+
+    test "Change backoff":
+      var c = 0
+
+      proc asyncFail(): Future[void] {.async.} =
+        var p = DefaultRetryPolicy
+        p.backOff = BackOff.exponential
+
+        retryAsync p:
+          c.inc
+          await sleepAsync(1)
+          assert false
+
+      let n = now()
+      try:
+        waitFor asyncFail()
+      except AssertionDefect:
+        discard
+
+      assert now() - n > initDuration(milliseconds = 700)
+
+    test "Change exponent":
+      var c = 0
+
+      proc asyncFail(): Future[void] {.async.} =
+        var p = DefaultRetryPolicy
+        p.backOff = BackOff.exponential
+        p.exponent = 3
+
+        retryAsync p:
+          c.inc
+          await sleepAsync(1)
+          assert false
+
+      let n = now()
+      try:
+        waitFor asyncFail()
+      except AssertionDefect:
+        discard
+
+      assert now() - n > initDuration(milliseconds = 1000)
+
+  suite "retryIfAsync":
+    test "The default policy and sccuesful":
+      proc returnInt(): Future[int] {.async.} =
+        return 1
+
+      assert 1 == waitFor retryIfAsync(returnInt(), r != 1)
+
+    test "The default policy and all fails":
+      var c = 0
+
+      proc countAndReturnInt(): Future[int] {.async.} =
         c.inc
-        await sleepAsync(1)
-        assert false
+        return 1
 
-    try:
-      waitFor asyncFail()
-    except AssertionDefect:
-      discard
+      try:
+        discard waitFor retryIfAsync(countAndReturnInt(), r == 1)
+      except RetryError:
+        discard
 
-    assert c == 4
+      assert c == 4
 
-  test "Change maxRetries":
-    var c = 0
+    test "Change maxRetries":
+      var c = 0
 
-    proc asyncFail(): Future[void] {.async.} =
-      var p = DefaultRetryPolicy
-      p.maxRetries = 5
-
-      retryAsync p:
+      proc countAndReturnFlase(): Future[bool] {.async.} =
         c.inc
-        await sleepAsync(1)
-        assert false
+        return false
 
-    try:
-      waitFor asyncFail()
-    except AssertionDefect:
-      discard
+      const Policy = RetryPolicy(
+        delay: 100,
+        maxDelay: 1000,
+        backoff: BackOff.fixed,
+        exponent: 2,
+        maxRetries: 5,
+        jitter: false,
+        failLog: true,
+        logLevel: Level.lvlInfo)
 
-    assert c == 6
+      try:
+        discard waitFor retryIfAsync(Policy, countAndReturnFlase(), true)
+      except RetryError:
+        discard
 
-  test "Change delay":
-    var c = 0
+      assert c == 6
 
-    proc asyncFail(): Future[void] {.async.} =
-      var p = DefaultRetryPolicy
-      p.delay = initDuration(milliseconds = 1)
+    test "Change delay":
+      proc returnFlase(): Future[bool] {.async.} =
+        return false
 
-      retryAsync p:
+      const Policy = RetryPolicy(
+        delay: 1,
+        maxDelay: 1000,
+        backoff: BackOff.fixed,
+        exponent: 2,
+        maxRetries: 3,
+        jitter: false,
+        failLog: true,
+        logLevel: Level.lvlInfo)
+
+      let n = now()
+      try:
+        discard waitFor retryIfAsync(Policy, returnFlase(), true)
+      except RetryError:
+        discard
+
+      assert now() - n < initDuration(milliseconds = 100)
+
+    test "Change backoff":
+      proc returnFlase(): Future[bool] {.async.} =
+        return false
+
+      const Policy = RetryPolicy(
+        delay: 100,
+        maxDelay: 1000,
+        backoff: BackOff.exponential,
+        exponent: 2,
+        maxRetries: 3,
+        jitter: false,
+        failLog: true,
+        logLevel: Level.lvlInfo)
+
+      let n = now()
+      try:
+        discard waitFor retryIfAsync(Policy, returnFlase(), true)
+      except RetryError:
+        discard
+
+      assert now() - n > initDuration(milliseconds = 700)
+
+    test "Change exponent":
+      proc returnFlase(): Future[bool] {.async.} =
+        return false
+
+      const Policy = RetryPolicy(
+        delay: 100,
+        maxDelay: 1000,
+        backoff: BackOff.exponential,
+        exponent: 3,
+        maxRetries: 3,
+        jitter: false,
+        failLog: true,
+        logLevel: Level.lvlInfo)
+
+      let n = now()
+      try:
+        discard waitFor retryIfAsync(Policy, returnFlase(), true)
+      except RetryError:
+        discard
+
+      assert now() - n > initDuration(milliseconds = 1000)
+
+  suite "retryIfExceptionAsync":
+    test "The default policy and sccuesful":
+      var c = 0
+
+      proc count(): Future[void] {.async.} =
         c.inc
-        await sleepAsync(1)
-        assert false
 
-    let n = now()
-    try:
-      waitFor asyncFail()
-    except AssertionDefect:
-      discard
+      waitFor retryIfExceptionAsync(count(), ValueError)
 
-    assert now() - n < initDuration(milliseconds = 100)
+      assert c == 1
 
-  test "Change backoff":
-    var c = 0
+    test "The default policy and all fails":
+      var c = 0
 
-    proc asyncFail(): Future[void] {.async.} =
-      var p = DefaultRetryPolicy
-      p.backOff = BackOff.exponential
-
-      retryAsync p:
+      proc countAndAssertionDefect(): Future[void] {.async.} =
         c.inc
-        await sleepAsync(1)
-        assert false
+        raise newException(AssertionDefect, "")
 
-    let n = now()
-    try:
-      waitFor asyncFail()
-    except AssertionDefect:
-      discard
+      try:
+        waitFor retryIfExceptionAsync(countAndAssertionDefect(), AssertionDefect)
+      except AssertionDefect:
+        discard
 
-    assert now() - n > initDuration(milliseconds = 700)
+      assert c == 4
 
-  test "Change exponent":
-    var c = 0
+    test "Change maxRetries":
+      var c = 0
 
-    proc asyncFail(): Future[void] {.async.} =
-      var p = DefaultRetryPolicy
-      p.backOff = BackOff.exponential
-      p.exponent = 3
-
-      retryAsync p:
+      proc countAndAssertionDefect(): Future[void] {.async.} =
         c.inc
-        await sleepAsync(1)
-        assert false
+        raise newException(AssertionDefect, "")
 
-    let n = now()
-    try:
-      waitFor asyncFail()
-    except AssertionDefect:
-      discard
+      const Policy = RetryPolicy(
+        delay: 100,
+        maxDelay: 1000,
+        backoff: BackOff.fixed,
+        exponent: 2,
+        maxRetries: 5,
+        jitter: false,
+        failLog: true,
+        logLevel: Level.lvlInfo)
 
-    assert now() - n > initDuration(milliseconds = 1000)
+      try:
+        waitFor retryIfExceptionAsync(
+          Policy,
+          countAndAssertionDefect(),
+          AssertionDefect)
+      except AssertionDefect:
+        discard
 
-suite "retryIfAsync":
-  test "The default policy and sccuesful":
-    proc returnInt(): Future[int] {.async.} =
-      return 1
+      assert c == 6
 
-    assert 1 == waitFor retryIfAsync(returnInt(), r != 1)
+    test "Change delay":
+      var c = 0
 
-  test "The default policy and all fails":
-    var c = 0
+      proc countAndAssertionDefect(): Future[void] {.async.} =
+        c.inc
+        raise newException(AssertionDefect, "")
 
-    proc countAndReturnInt(): Future[int] {.async.} =
-      c.inc
-      return 1
+      const Policy = RetryPolicy(
+         delay: 1,
+         maxDelay: 1000,
+         backoff: BackOff.fixed,
+         exponent: 2,
+         maxRetries: 3,
+         jitter: false,
+         failLog: true,
+         logLevel: Level.lvlInfo)
 
-    try:
-      discard waitFor retryIfAsync(countAndReturnInt(), r == 1)
-    except RetryError:
-      discard
+      let n = now()
+      try:
+        waitFor retryIfExceptionAsync(
+          Policy,
+          countAndAssertionDefect(),
+          AssertionDefect)
+      except AssertionDefect:
+        discard
 
-    assert c == 4
+      assert now() - n < initDuration(milliseconds = 100)
 
-  test "Change maxRetries":
-    var c = 0
+    test "Change backoff":
+      var c = 0
 
-    proc countAndReturnFlase(): Future[bool] {.async.} =
-      c.inc
-      return false
+      proc countAndAssertionDefect(): Future[void] {.async.} =
+        c.inc
+        raise newException(AssertionDefect, "")
 
-    var p = DefaultRetryPolicy
-    p.maxRetries = 5
+      const Policy = RetryPolicy(
+        delay: 100,
+        maxDelay: 1000,
+        backoff: BackOff.exponential,
+        exponent: 2,
+        maxRetries: 3,
+        jitter: false,
+        failLog: true,
+        logLevel: Level.lvlInfo)
 
-    try:
-      discard waitFor retryIfAsync(p, countAndReturnFlase(), true)
-    except RetryError:
-      discard
+      let n = now()
+      try:
+        waitFor retryIfExceptionAsync(
+          Policy,
+          countAndAssertionDefect(),
+          AssertionDefect)
+      except AssertionDefect:
+        discard
 
-    assert c == 6
+      assert now() - n > initDuration(milliseconds = 700)
 
-  test "Change delay":
-    proc returnFlase(): Future[bool] {.async.} =
-      return false
+    test "Change exponent":
+      var c = 0
 
-    var p = DefaultRetryPolicy
-    p.delay = initDuration(milliseconds = 1)
+      proc countAndAssertionDefect(): Future[void] {.async.} =
+        c.inc
+        raise newException(AssertionDefect, "")
 
-    let n = now()
-    try:
-      discard waitFor retryIfAsync(p, returnFlase(), true)
-    except RetryError:
-      discard
+      const Policy = RetryPolicy(
+         delay: 100,
+         maxDelay: 1000,
+         backoff: BackOff.exponential,
+         exponent: 3,
+         maxRetries: 3,
+         jitter: false,
+         failLog: true,
+         logLevel: Level.lvlInfo)
 
-    assert now() - n < initDuration(milliseconds = 100)
+      let n = now()
+      try:
+        waitFor retryIfExceptionAsync(
+          Policy,
+          countAndAssertionDefect(),
+          AssertionDefect)
+      except AssertionDefect:
+        discard
 
-  test "Change backoff":
-    proc returnFlase(): Future[bool] {.async.} =
-      return false
-
-    var p = DefaultRetryPolicy
-    p.backOff = BackOff.exponential
-
-    let n = now()
-    try:
-      discard waitFor retryIfAsync(p, returnFlase(), true)
-    except RetryError:
-      discard
-
-    assert now() - n > initDuration(milliseconds = 700)
-
-  test "Change exponent":
-    proc returnFlase(): Future[bool] {.async.} =
-      return false
-
-    var p = DefaultRetryPolicy
-    p.backOff = BackOff.exponential
-    p.exponent = 3
-
-    let n = now()
-    try:
-      discard waitFor retryIfAsync(p, returnFlase(), true)
-    except RetryError:
-      discard
-
-    assert now() - n > initDuration(milliseconds = 1000)
-
-suite "retryIfExceptionAsync":
-  test "The default policy and sccuesful":
-    var c = 0
-
-    proc count(): Future[void] {.async.} =
-      c.inc
-
-    waitFor retryIfExceptionAsync(count(), ValueError)
-
-    assert c == 1
-
-  test "The default policy and all fails":
-    var c = 0
-
-    proc countAndAssertionDefect(): Future[void] {.async.} =
-      c.inc
-      raise newException(AssertionDefect, "")
-
-    try:
-      waitFor retryIfExceptionAsync(countAndAssertionDefect(), AssertionDefect)
-    except AssertionDefect:
-      discard
-
-    assert c == 4
-
-  test "Change maxRetries":
-    var c = 0
-
-    proc countAndAssertionDefect(): Future[void] {.async.} =
-      c.inc
-      raise newException(AssertionDefect, "")
-
-    var p = DefaultRetryPolicy
-    p.maxRetries = 5
-
-    try:
-      waitFor retryIfExceptionAsync(
-        p,
-        countAndAssertionDefect(),
-        AssertionDefect)
-    except AssertionDefect:
-      discard
-
-    assert c == 6
-
-  test "Change delay":
-    var c = 0
-
-    proc countAndAssertionDefect(): Future[void] {.async.} =
-      c.inc
-      raise newException(AssertionDefect, "")
-
-    var p = DefaultRetryPolicy
-    p.delay = initDuration(milliseconds = 1)
-
-    let n = now()
-    try:
-      waitFor retryIfExceptionAsync(
-        p,
-        countAndAssertionDefect(),
-        AssertionDefect)
-    except AssertionDefect:
-      discard
-
-    assert now() - n < initDuration(milliseconds = 100)
-
-  test "Change backoff":
-    var c = 0
-
-    proc countAndAssertionDefect(): Future[void] {.async.} =
-      c.inc
-      raise newException(AssertionDefect, "")
-
-    var p = DefaultRetryPolicy
-    p.backoff = BackOff.exponential
-
-    let n = now()
-    try:
-      waitFor retryIfExceptionAsync(
-        p,
-        countAndAssertionDefect(),
-        AssertionDefect)
-    except AssertionDefect:
-      discard
-
-    assert now() - n > initDuration(milliseconds = 700)
-
-  test "Change exponent":
-    var c = 0
-
-    proc countAndAssertionDefect(): Future[void] {.async.} =
-      c.inc
-      raise newException(AssertionDefect, "")
-
-    var p = DefaultRetryPolicy
-    p.backoff = BackOff.exponential
-    p.exponent = 3
-
-    let n = now()
-    try:
-      waitFor retryIfExceptionAsync(
-        p,
-        countAndAssertionDefect(),
-        AssertionDefect)
-    except AssertionDefect:
-      discard
-
-    assert now() - n > initDuration(milliseconds = 1000)
+      assert now() - n > initDuration(milliseconds = 1000)
 
 suite "Logs: `retry`":
   ## Init a console logger for tests.
@@ -645,34 +722,35 @@ suite "Logs: `retry`":
     except AssertionDefect:
       assert true
 
-suite "Logs: `retryAsync`":
-  test "Enable failLog":
-    proc asyncFail(): Future[void] {.async.} =
-      var p = DefaultRetryPolicy
-      p.maxRetries = 1
-      p.failLog = true
+when AsyncSupport:
+  suite "Logs: `retryAsync`":
+    test "Enable failLog":
+      proc asyncFail(): Future[void] {.async.} =
+        var p = DefaultRetryPolicy
+        p.maxRetries = 1
+        p.failLog = true
 
-      retryAsync p:
-        await sleepAsync(1)
-        assert false
+        retryAsync p:
+          await sleepAsync(1)
+          assert false
 
-    try:
-       waitFor asyncFail()
-    except AssertionDefect:
-      assert true
+      try:
+         waitFor asyncFail()
+      except AssertionDefect:
+        assert true
 
-  test "customFailLog":
-    proc asyncFail(): Future[void] {.async.} =
-      var p = DefaultRetryPolicy
-      p.maxRetries = 1
-      p.failLog = true
-      p.customFailLog = "Custom log: $1, $2, $3"
+    test "customFailLog":
+      proc asyncFail(): Future[void] {.async.} =
+        var p = DefaultRetryPolicy
+        p.maxRetries = 1
+        p.failLog = true
+        p.customFailLog = "Custom log: $1, $2, $3"
 
-      retryAsync p:
-        await sleepAsync(1)
-        assert false
+        retryAsync p:
+          await sleepAsync(1)
+          assert false
 
-    try:
-       waitFor asyncFail()
-    except AssertionDefect:
-      assert true
+      try:
+         waitFor asyncFail()
+      except AssertionDefect:
+        assert true
