@@ -6,23 +6,23 @@
 
 const
   # -d:asyncBackend=none|asyncdispatch|chronos`
-  asyncBackend {.strdefine.} = "none"
+  AsyncBackend* {.strdefine.} = "none"
 
-  AsyncSupport* = asyncBackend != "none"
+  AsyncSupport* = AsyncBackend != "none"
 
-when asyncBackend == "none":
+when AsyncBackend == "none":
   discard
-elif asyncBackend == "asyncdispatch":
+elif AsyncBackend == "asyncdispatch":
   import std/asyncdispatch
 
   export asyncdispatch
 
   type Duration* = int
 
-elif asyncBackend == "chronos":
+elif AsyncBackend == "chronos":
   import pkg/chronos
 
   export chronos
 
 else:
-  {.fatal: "Unrecognized backend: " & asyncBackend .}
+  {.fatal: "Unrecognized backend: " & AsyncBackend .}

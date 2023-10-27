@@ -59,8 +59,12 @@ const
 proc sleep(t: int64) {.inline.} = sleep t.int
 
 when AsyncSupport:
-  proc sleepAsync(t: int64) {.inline, async.} =
-    await sleepAsync(t.int)
+  when AsyncBackend == "asyncdispatch":
+    proc sleepAsync(t: int64) {.inline, async.} =
+      await sleepAsync(t.int)
+  else:
+    proc sleepAsync(t: int64) {.inline, async.} =
+      await sleepAsync(t.milliSeconds)
 
 proc jitter(d: MilliSeconds): MilliSeconds =
   ## Return a random duration.
