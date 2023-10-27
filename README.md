@@ -30,12 +30,12 @@ discard waitFor getContentAsync("https://nim-lang.org")
 ```
 
 ```nim
-import std/[times, httpclient, logging]
+import std/[httpclient, logging]
 import pkg/retry
 
 let myPolicy = RetryPolicy(
-  delay: initDuration(milliseconds = 100),
-  maxDelay: initDuration(milliseconds = 1000),
+  delay: 100,
+  maxDelay: 1000,
   backoff: BackOff.exponential,
   exponent: 2,
   maxRetries: 3,
