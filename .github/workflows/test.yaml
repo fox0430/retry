@@ -38,7 +38,7 @@ jobs:
 
     strategy:
       matrix:
-        nim: [ '1.6.0', 'stable', 'devel' ]
+        nim: [ '1.6.16', 'stable', 'devel' ]
 
     name: Test on ${{ matrix.nim }}
     steps:
