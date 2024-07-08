@@ -106,13 +106,16 @@ proc showFailLog(
   delay: MilliSeconds) =
     ## Show logs if policy.failLog is true.
 
-    let message =
-      if policy.customFailLog.len > 0:
-        policy.customFailLog.formatCustomFailLog(currentRetry, maxRetries, delay)
-      else:
-        fmt"Attempt: {currentRetry}/{maxRetries}, retrying in {delay} seconds"
+    try:
+      let message =
+        if policy.customFailLog.len > 0:
+          policy.customFailLog.formatCustomFailLog(currentRetry, maxRetries, delay)
+        else:
+          fmt"Attempt: {currentRetry}/{maxRetries}, retrying in {delay} seconds"
 
-    log(policy.logLevel, message)
+      log(policy.logLevel, message)
+    except:
+      discard
 
 template retry*(policy: RetryPolicy, body: untyped): untyped =
   ## Attempts received body according to RetryPolicy.
