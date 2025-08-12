@@ -42,7 +42,7 @@ jobs:
 
     name: Test on ${{ matrix.nim }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup nim
         uses: jiro4989/setup-nim-action@v2
         with:
